@@ -1,0 +1,293 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+local NotificationHolder = Instance.new("ScreenGui")
+NotificationHolder.Name = "NotificationUI"
+NotificationHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+NotificationHolder.ResetOnSpawn = false
+
+local NotificationContainer = Instance.new("Frame")
+NotificationContainer.Name = "NotificationContainer"
+NotificationContainer.Size = UDim2.new(1, 0, 0, 100)
+NotificationContainer.Position = UDim2.new(0, 0, 1, 0)
+NotificationContainer.AnchorPoint = Vector2.new(0, 1)
+NotificationContainer.BackgroundTransparency = 1
+NotificationContainer.ClipsDescendants = true
+
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Name = "NotificationScroller"
+ScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+ScrollingFrame.Position = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.BackgroundTransparency = 1
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.ScrollBarThickness = 0
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollingFrame.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.PaddingBottom = UDim.new(0, 20)
+UIPadding.PaddingLeft = UDim.new(0.05, 0)
+UIPadding.PaddingRight = UDim.new(0.05, 0)
+
+UIListLayout.Parent = ScrollingFrame
+UIPadding.Parent = ScrollingFrame
+ScrollingFrame.Parent = NotificationContainer
+NotificationContainer.Parent = NotificationHolder
+
+local function createNotificationTemplate()
+	local template = Instance.new("Frame")
+	template.Name = "NotificationTemplate"
+	template.Size = UDim2.new(0.9, 0, 0, 70)
+	template.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	template.BackgroundTransparency = 0.1
+	template.BorderSizePixel = 0
+	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = template
+	
+	local shadow = Instance.new("ImageLabel")
+	shadow.Name = "Shadow"
+	shadow.Size = UDim2.new(1, 10, 1, 10)
+	shadow.Position = UDim2.new(0, -5, 0, -5)
+	shadow.BackgroundTransparency = 1
+	shadow.Image = "rbxassetid://5554236805"
+	shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+	shadow.ImageTransparency = 0.7
+	shadow.ScaleType = Enum.ScaleType.Slice
+	shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+	shadow.Parent = template
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(60, 60, 80)
+	stroke.Thickness = 1
+	stroke.Transparency = 0.5
+	stroke.Parent = template
+	
+	local innerFrame = Instance.new("Frame")
+	innerFrame.Name = "Inner"
+	innerFrame.Size = UDim2.new(1, -20, 1, -20)
+	innerFrame.Position = UDim2.new(0, 10, 0, 10)
+	innerFrame.BackgroundTransparency = 1
+	
+	local iconFrame = Instance.new("Frame")
+	iconFrame.Name = "IconFrame"
+	iconFrame.Size = UDim2.new(0, 40, 1, 0)
+	iconFrame.BackgroundTransparency = 1
+	
+	local icon = Instance.new("ImageLabel")
+	icon.Name = "Icon"
+	icon.Size = UDim2.new(1, 0, 1, 0)
+	icon.BackgroundTransparency = 1
+	icon.Image = "rbxassetid://3926305904"
+	icon.ImageColor3 = Color3.fromRGB(150, 150, 255)
+	icon.Parent = iconFrame
+	
+	iconFrame.Parent = innerFrame
+	
+	local textFrame = Instance.new("Frame")
+	textFrame.Name = "TextFrame"
+	textFrame.Size = UDim2.new(1, -50, 1, 0)
+	textFrame.Position = UDim2.new(0, 50, 0, 0)
+	textFrame.BackgroundTransparency = 1
+	
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.new(1, 0, 0, 20)
+	title.Position = UDim2.new(0, 0, 0, 5)
+	title.BackgroundTransparency = 1
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.TextStrokeTransparency = 0.8
+	title.Text = "Notification"
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 16
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Bottom
+	title.Parent = textFrame
+	
+	local message = Instance.new("TextLabel")
+	message.Name = "Message"
+	message.Size = UDim2.new(1, 0, 1, -25)
+	message.Position = UDim2.new(0, 0, 0, 25)
+	message.BackgroundTransparency = 1
+	message.TextColor3 = Color3.fromRGB(200, 200, 220)
+	message.Text = "Message content goes here"
+	message.Font = Enum.Font.Gotham
+	message.TextSize = 14
+	message.TextXAlignment = Enum.TextXAlignment.Left
+	message.TextYAlignment = Enum.TextYAlignment.Top
+	message.TextWrapped = true
+	message.Parent = textFrame
+	
+	textFrame.Parent = innerFrame
+	innerFrame.Parent = template
+	
+	return template
+end
+
+local notificationTemplate = createNotificationTemplate()
+notificationTemplate.Parent = script
+
+local activeNotifications = {}
+local notificationId = 0
+
+local function showNotification(options)
+	notificationId += 1
+	local currentId = notificationId
+	
+	local config = {
+		title = options.title or "Notification",
+		message = options.message or "",
+		duration = options.duration or 5,
+		icon = options.icon or "rbxassetid://3926305904",
+		iconColor = options.iconColor or Color3.fromRGB(150, 150, 255),
+		backgroundColor = options.backgroundColor or Color3.fromRGB(20, 20, 25),
+		textColor = options.textColor or Color3.fromRGB(255, 255, 255),
+		onClick = options.onClick
+	}
+	
+	local notification = notificationTemplate:Clone()
+	notification.Name = "Notification_" .. currentId
+	notification.LayoutOrder = currentId
+	notification.BackgroundColor3 = config.backgroundColor
+	notification.Visible = true
+	
+	local iconLabel = notification:WaitForChild("Inner"):WaitForChild("IconFrame"):WaitForChild("Icon")
+	iconLabel.Image = config.icon
+	iconLabel.ImageColor3 = config.iconColor
+	
+	local textFrame = notification:WaitForChild("Inner"):WaitForChild("TextFrame")
+	local titleLabel = textFrame:WaitForChild("Title")
+	local messageLabel = textFrame:WaitForChild("Message")
+	
+	titleLabel.Text = config.title
+	titleLabel.TextColor3 = config.textColor
+	messageLabel.Text = config.message
+	
+	notification.Position = UDim2.new(0.5, 0, 1, 100)
+	notification.AnchorPoint = Vector2.new(0.5, 1)
+	
+	notification.Parent = ScrollingFrame
+	
+	local slideInTime = 0.3
+	local slideOutTime = 0.2
+	local holdTime = config.duration
+	
+	local slideInTween = TweenService:Create(
+		notification,
+		TweenInfo.new(slideInTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{Position = UDim2.new(0.5, 0, 1, -10)}
+	)
+	
+	activeNotifications[currentId] = {
+		instance = notification,
+		tween = slideInTween,
+		timer = holdTime,
+		expired = false
+	}
+	
+	if config.onClick then
+		notification.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				config.onClick()
+			end
+		end)
+		notification.Active = true
+	end
+	
+	slideInTween:Play()
+	
+	slideInTween.Completed:Wait()
+	
+	spawn(function()
+		local timer = config.duration
+		while timer > 0 and activeNotifications[currentId] and not activeNotifications[currentId].expired do
+			timer -= 0.1
+			wait(0.1)
+		end
+		
+		if activeNotifications[currentId] then
+			activeNotifications[currentId].expired = true
+			
+			local slideOutTween = TweenService:Create(
+				notification,
+				TweenInfo.new(slideOutTime, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{Position = UDim2.new(0.5, 0, 1, 100)}
+			)
+			
+			slideOutTween:Play()
+			slideOutTween.Completed:Wait()
+			
+			if notification.Parent then
+				notification:Destroy()
+			end
+			activeNotifications[currentId] = nil
+		end
+	end)
+	
+	return currentId
+end
+
+local function dismissNotification(id)
+	if activeNotifications[id] then
+		activeNotifications[id].expired = true
+	end
+end
+
+local function clearAllNotifications()
+	for id, notification in pairs(activeNotifications) do
+		notification.expired = true
+	end
+end
+
+NotificationHolder.Parent = gui
+
+local containerTween = TweenService:Create(
+	NotificationContainer,
+	TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+	{Position = UDim2.new(0, 0, 1, -120)}
+)
+
+spawn(function()
+	while true do
+		local hasNotifications = false
+		for id, notification in pairs(activeNotifications) do
+			if notification.instance.Parent then
+				hasNotifications = true
+				break
+			end
+		end
+		
+		if hasNotifications then
+			containerTween:Play()
+		else
+			local slideDown = TweenService:Create(
+				NotificationContainer,
+				TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{Position = UDim2.new(0, 0, 1, 0)}
+			)
+			slideDown:Play()
+		end
+		
+		wait(0.5)
+	end
+end)
+
+local NotificationAPI = {
+	show = showNotification,
+	dismiss = dismissNotification,
+	clearAll = clearAllNotifications,
+	gui = NotificationHolder
+}
+
+return NotificationAPI
